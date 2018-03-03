@@ -14,21 +14,64 @@ import javafx.scene.Node;
 import javafx.geometry.Insets;
 import javafx.scene.text.Font;
 
+import javafx.stage.StageStyle;
+import javafx.scene.input.MouseEvent;
+
 public class MultiTimer extends Application {
     TreeMap<KeyCode,Timer> timers = new TreeMap<>();
     static Font f = new Font(30);
     public static void main(String[] args) {
 	launch(args);
     }
+    private double xOffset = 0;
+    private double yOffset = 0;
+    private Boolean paused = false;
+    private long pauseTime;
 
     public void start(Stage ps) {
+	ps.initStyle(StageStyle.TRANSPARENT);
 	VBox pane = new VBox();
+	pane.setOnMousePressed(new EventHandler<MouseEvent>() {
+		@Override
+		public void handle(MouseEvent me) {
+		    xOffset = me.getSceneX();
+		    yOffset = me.getSceneY();
+		}
+	    });
+	pane.setOnMouseDragged(new EventHandler<MouseEvent>() {
+		@Override
+		public void handle(MouseEvent me) {
+		    ps.setX(me.getScreenX() - xOffset);
+		    ps.setY(me.getScreenY() - yOffset);
+		}
+	    });
 	pane.setPadding(new Insets(10));
 	ps.setTitle("MultiTimer");
 	ps.addEventHandler(KeyEvent.KEY_PRESSED,new EventHandler<KeyEvent>() {
 		@Override
 		public void handle(KeyEvent ke) {
 		    //System.out.println(ke.getCode());
+		    if(ke.getCode().equals(KeyCode.ESCAPE)) {
+			//consider less forceful exit
+			System.exit(0);
+		    }
+		    if(ke.getCode().equals(KeyCode.SPACE)) {
+			if(paused) {
+			    synchronized(paused) {
+				paused = false;
+				paused.notify()
+			    }
+			    long pauseDuration = System.currentTimeMillis() - pauseTime;
+			    for(Timer t : timers.values())
+				t.offset+=pauseDuration;
+			} else {
+			    synchronized(paused) {
+				paused = true;
+				pauseTime = System.currentTimeMillis();
+			    }
+			}
+			return;
+		    }
 		    if(ke.getCode().equals(KeyCode.BACK_SPACE)) {
 			timers.clear();
 			pane.getChildren().clear();
@@ -64,6 +107,12 @@ public class MultiTimer extends Application {
 	    public void run() {
 		while(true) {
 		    try {
+			if(paused) {
+			    synchronized(paused) {
+				while(paused)
+				    paused.wait(1000);
+			    }
+			}
 			Thread.sleep(76);
 		    } catch(Exception e) {}
 		    //System.out.println("updated");
