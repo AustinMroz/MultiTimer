@@ -32,12 +32,20 @@ public class MultiTimer extends Application {
     private double yOffset = 0;
     static private boolean paused = false;
     static private long pauseTime;
+    Rectangle topDiv;
+
+    public boolean addUp = true;
 
     public void start(Stage ps) {
 	ps.initStyle(StageStyle.TRANSPARENT);
 	ps.setAlwaysOnTop(true);
 	
 	VBox pane = new VBox();
+	topDiv = new Rectangle(210,10);
+	topDiv.setFill(new Color(1,1,1,1));
+	topDiv.setArcWidth(5);
+	topDiv.setArcHeight(5);
+	pane.getChildren().add(topDiv);
 	pane.setOnMousePressed(new EventHandler<MouseEvent>() {
 		@Override
 		public void handle(MouseEvent me) {
@@ -101,19 +109,33 @@ public class MultiTimer extends Application {
 		    if(ke.getCode().equals(KeyCode.BACK_SPACE)) {
 			timers.clear();
 			pane.getChildren().clear();
+			pane.getChildren().add(topDiv);
 			return;
 		    }
-		    if(ke.getCode().equals(KeyCode.CONTROL))
+		    if(ke.getCode().equals(KeyCode.CONTROL) ||
+		       ke.getCode().equals(KeyCode.ALT) ||
+		       ke.getCode().equals(KeyCode.TAB))
 			return;
 		    if(timers.get(ke.getCode())==null) {
 			Timer t = new Timer(ke.getText());
 			timers.put(ke.getCode(),t);
-			pane.getChildren().add(t.n);
+			if(addUp) {
+			    pane.getChildren().add(0,t.n);
+			    ps.setY(ps.getY()-40);
+			} else {
+			    pane.getChildren().add(t.n);
+			}
+			//probably stage height too
+			ps.setHeight(ps.getHeight()+40);
 			
 		    } else {
 			if(ke.isControlDown()) {
 			    pane.getChildren().remove(timers.get(ke.getCode()).n);
 			    timers.remove(ke.getCode());
+			    if(addUp)
+				ps.setY(ps.getY()+40);
+			    //probably lower stage height
+			    ps.setHeight(ps.getHeight()-40);
 			} else
 			    timers.get(ke.getCode()).reset();
 		    }
