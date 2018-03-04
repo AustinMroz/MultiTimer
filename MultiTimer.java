@@ -16,6 +16,11 @@ import javafx.scene.text.Font;
 
 import javafx.stage.StageStyle;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.MouseButton;
+import java.lang.Math;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.layout.StackPane;
 
 public class MultiTimer extends Application {
     TreeMap<KeyCode,Timer> timers = new TreeMap<>();
@@ -25,11 +30,13 @@ public class MultiTimer extends Application {
     }
     private double xOffset = 0;
     private double yOffset = 0;
-    private Boolean paused = false;
-    private long pauseTime;
+    static private boolean paused = false;
+    static private long pauseTime;
 
     public void start(Stage ps) {
 	ps.initStyle(StageStyle.TRANSPARENT);
+	ps.setAlwaysOnTop(true);
+	
 	VBox pane = new VBox();
 	pane.setOnMousePressed(new EventHandler<MouseEvent>() {
 		@Override
@@ -41,12 +48,34 @@ public class MultiTimer extends Application {
 	pane.setOnMouseDragged(new EventHandler<MouseEvent>() {
 		@Override
 		public void handle(MouseEvent me) {
-		    ps.setX(me.getScreenX() - xOffset);
-		    ps.setY(me.getScreenY() - yOffset);
+		    if(me.getButton().equals(MouseButton.PRIMARY)) {
+			//move
+			ps.setX(me.getScreenX() - xOffset);
+			ps.setY(me.getScreenY() - yOffset);
+		    } else if(me.getButton().equals(MouseButton.SECONDARY)) {
+			//rescale
+			double dx = me.getScreenX() - xOffset;
+			double dy = me.getScreenY() - yOffset;
+			//consider allowing change of aspect ratio?
+			double distance = Math.sqrt(dx*dx+dy*dy);
+		    }
 		}
 	    });
 	pane.setPadding(new Insets(10));
 	ps.setTitle("MultiTimer");
+	Thread updateThread = new Thread() {
+		@Override
+		public void run() {
+		    while(true) {
+			try {
+			    Thread.sleep(76);
+			} catch(Exception e) {}
+			//System.out.println("updated");
+			for(Timer t : timers.values())
+			    t.update();
+		    }
+		}
+	    };
 	ps.addEventHandler(KeyEvent.KEY_PRESSED,new EventHandler<KeyEvent>() {
 		@Override
 		public void handle(KeyEvent ke) {
@@ -57,18 +86,15 @@ public class MultiTimer extends Application {
 		    }
 		    if(ke.getCode().equals(KeyCode.SPACE)) {
 			if(paused) {
-			    synchronized(paused) {
-				paused = false;
-				paused.notify()
-			    }
+			    paused = false;
 			    long pauseDuration = System.currentTimeMillis() - pauseTime;
 			    for(Timer t : timers.values())
 				t.offset+=pauseDuration;
+			    updateThread.resume();
 			} else {
-			    synchronized(paused) {
-				paused = true;
-				pauseTime = System.currentTimeMillis();
-			    }
+			    paused = true;
+			    updateThread.suspend();
+			    pauseTime = System.currentTimeMillis();
 			}
 			return;
 		    }
@@ -93,8 +119,9 @@ public class MultiTimer extends Application {
 		    }
 		}
 	    });
-	ps.setScene(new Scene(pane,300,300));
-	/**/
+	Scene s = new Scene(pane,220,300);
+	s.setFill(new Color(1,1,1,0));
+	ps.setScene(s);
 	ps.setOnCloseRequest(new EventHandler<WindowEvent>() {
 		@Override
 		public void handle(WindowEvent event) {
@@ -102,25 +129,7 @@ public class MultiTimer extends Application {
 		}
 	    });
 	ps.show();
-	new Thread() {
-	    @Override
-	    public void run() {
-		while(true) {
-		    try {
-			if(paused) {
-			    synchronized(paused) {
-				while(paused)
-				    paused.wait(1000);
-			    }
-			}
-			Thread.sleep(76);
-		    } catch(Exception e) {}
-		    //System.out.println("updated");
-		    for(Timer t : timers.values())
-			t.update();
-		}
-	    }
-	}.start();
+	updateThread.start();
     }
 
     public void updateAll() {
@@ -135,17 +144,29 @@ public class MultiTimer extends Application {
 	String key;
 	public Timer(String s) {
 	    key = s;
-	    offset = System.currentTimeMillis();
+	    if(paused)
+		offset = pauseTime;
+	    else
+		offset = System.currentTimeMillis();
 	    t = new Text(toString());
 	    t.setFont(MultiTimer.f);
-	    n = t;
+	    StackPane sp = new StackPane();
+	    Rectangle r = new Rectangle(210,30);
+	    r.setFill(new Color(1,1,1,1));
+	    r.setArcWidth(5);
+	    r.setArcHeight(5);
+	    sp.getChildren().addAll(r,t);
+	    n = sp;
 	    //t.autosize();
 	}
 	public long currentTime(){
 	    return System.currentTimeMillis()-offset;
 	}
 	public void reset() {
-	    offset=System.currentTimeMillis();
+	    if(paused)
+		offset = pauseTime;
+	    else
+		offset=System.currentTimeMillis();
 	}
 	public void update() {
 	    t.setText(toString());
